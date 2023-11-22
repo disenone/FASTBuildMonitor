@@ -17,6 +17,8 @@ using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.Win32;
 using EnvDTE;
 using EnvDTE80;
+using System.Threading.Tasks;
+
 
 namespace FASTBuildMonitorVSIX
 {
@@ -77,15 +79,27 @@ namespace FASTBuildMonitorVSIX
             base.Initialize();
 
             _instance = this;
-
-            _dte = (DTE2)base.GetService(typeof(DTE));
+            
         }
 
         public static int count = 0;
 
-        public void ListWindows()
+        public async Task<DTE2> GetDteAsync()
         {
-            OutputWindow outWindow = _dte.ToolWindows.OutputWindow;
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            if (_dte == null)
+            {
+                _dte = (DTE2)base.GetService(typeof(DTE));
+            }
+            return _dte;
+        }
+
+        public async Task ListWindows()
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            DTE2 dte = await GetDteAsync();
+            OutputWindow outWindow = dte.ToolWindows.OutputWindow;
             outWindow.Parent.AutoHides = false;
             outWindow.Parent.Activate();
 
@@ -155,10 +169,10 @@ namespace FASTBuildMonitorVSIX
             public string _authors;
         }
 
-        public VSIXPackageInformation GetCurrentVSIXPackageInformation()
+        public async Task<VSIXPackageInformation> GetCurrentVSIXPackageInformation()
         {
             VSIXPackageInformation outInfo = null;
-
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
             try
             {
                 outInfo = new VSIXPackageInformation();

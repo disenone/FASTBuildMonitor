@@ -23,6 +23,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using EnvDTE;
 using EnvDTE80;
+using Microsoft.VisualStudio.Shell;
 
 namespace FASTBuildMonitorVSIX
 {
@@ -47,7 +48,7 @@ namespace FASTBuildMonitorVSIX
             InitializeInternalState();
         }
 
-        private void InitializeInternalState()
+        private async void InitializeInternalState()
         {
             // Initialize text rendering
             TextUtils.StaticInitialize();
@@ -87,14 +88,23 @@ namespace FASTBuildMonitorVSIX
 
             OutputWindowComboBox.SelectionChanged += OutputWindowComboBox_SelectionChanged;
 
-            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
-            {
+            await ThreadHelper.JoinableTaskFactory.RunAsync(async delegate {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                 //update timer
                 _timer = new DispatcherTimer();
                 _timer.Tick += HandleTick;
                 _timer.Interval = new TimeSpan(TimeSpan.TicksPerMillisecond * 16);
                 _timer.Start();
-            }));
+            });
+ 
+            //_ = Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+            //{
+            //    //update timer
+            //    _timer = new DispatcherTimer();
+            //    _timer.Tick += HandleTick;
+            //    _timer.Interval = new TimeSpan(TimeSpan.TicksPerMillisecond * 16);
+            //    _timer.Start();
+            //}));
         }
 
         /* Settings Tab Check boxes */
@@ -130,7 +140,7 @@ namespace FASTBuildMonitorVSIX
 
         /* Output Window double click */
 
-        private void OutputTextBox_PreviewMouseDoubleClick(object sender, MouseButtonEventArgs e)
+        private async void OutputTextBox_PreviewMouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
             if (e.ChangedButton == MouseButton.Left)
             {
@@ -162,11 +172,13 @@ namespace FASTBuildMonitorVSIX
 
                             Microsoft.VisualStudio.Shell.VsShellUtilities.OpenDocument(FASTBuildMonitorVSIX.FASTBuildMonitorPackage._instance, filePath);
 
-                            DTE2 _dte = (DTE2)FASTBuildMonitorPackage._instance._dte;
+                            DTE2 dte = await FASTBuildMonitorPackage._instance.GetDteAsync();
 
                             //Console.WriteLine("Window: {0}", _dte.ActiveWindow.Caption);
 
-                            EnvDTE.TextSelection sel = _dte.ActiveDocument.Selection as EnvDTE.TextSelection;
+                            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                            EnvDTE.TextSelection sel = dte.ActiveDocument.Selection as EnvDTE.TextSelection;
 
                             sel.StartOfDocument(false);
                             sel.EndOfDocument(true);
@@ -346,8 +358,9 @@ namespace FASTBuildMonitorVSIX
             }
         }
 
-        private void FASTBuildMonitorControl_Loaded(object sender, RoutedEventArgs e)
+        private async void FASTBuildMonitorControl_Loaded(object sender, RoutedEventArgs e)
         {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
             Image image = new Image();
             image.Source = GetBitmapImage(FASTBuildMonitorVSIX.Resources.Images.TimeLineTabIcon);
             image.Margin = new Thickness(5, 5, 5, 5);
@@ -375,13 +388,16 @@ namespace FASTBuildMonitorVSIX
             ((ToolTip)image.ToolTip).Content = "Settings";
             TabItemSettings.Header = image;
 
-
             string versionText = "v?";
             string authorsText = "Yassine Riahi & Liam Flookes";
             string packageNameText = "FASTBuildMonitorVSIX";
 
-			// Find out the VSIX info
-			FASTBuildMonitorPackage.VSIXPackageInformation packageInfo = FASTBuildMonitorPackage._instance != null ? FASTBuildMonitorPackage._instance.GetCurrentVSIXPackageInformation() : null;
+            // Find out the VSIX info
+            FASTBuildMonitorPackage.VSIXPackageInformation packageInfo = null;
+            if (FASTBuildMonitorPackage._instance != null)
+            {
+                packageInfo = await FASTBuildMonitorPackage._instance.GetCurrentVSIXPackageInformation();
+            }
 
 			if (packageInfo != null)
 			{
